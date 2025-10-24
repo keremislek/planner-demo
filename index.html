@@ -1,460 +1,322 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tiyatro Prova Planlayıcı</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-
-        // Firebase yapılandırması
-        const firebaseConfig = {
-            apiKey: "AIzaSyBFu7MWsL95tM4Afn81rx-h4hgClYpAi7E",
-            authDomain: "planner-demo-b5604.firebaseapp.com",
-            databaseURL: "https://planner-demo-b5604-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "planner-demo-b5604",
-            storageBucket: "planner-demo-b5604.firebasestorage.app",
-            messagingSenderId: "478193173507",
-            appId: "1:478193173507:web:0935ddfd30a68cb681fa36"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const database = getDatabase(app);
-
-        window.firebaseDB = database;
-        window.firebaseRef = ref;
-        window.firebaseSet = set;
-        window.firebaseGet = get;
-        window.firebaseOnValue = onValue;
-        
-        window.dispatchEvent(new Event('firebaseReady'));
-    </script>
-    <style>
-        .priority-btn {
-            transition: all 0.3s ease;
-        }
-        .priority-btn.active {
-            transform: scale(1.05);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tiyatro Prova Planlayıcı</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .priority-btn { transition: all .3s ease; }
+    .priority-btn.active { transform: scale(1.05); box-shadow: 0 4px 6px rgba(0,0,0,.1); }
+  </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900">
-    <div class="p-4 md:p-8">
-        <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-8">
-                <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">
-                    🎭 Tiyatro Prova Planlayıcı
-                </h1>
-                <p class="text-purple-200 text-lg" id="participantCount">
-                    0 / 9 kişi yanıt verdi
-                </p>
-                <p class="text-purple-300 text-sm mt-1">
-                    ✨ Veriler tüm ekiple paylaşılıyor • Gerçek zamanlı güncelleniyor
-                </p>
-            </div>
-
-            <div class="grid lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl">
-                    <h2 class="text-2xl font-bold text-white mb-4">
-                        👥 Müsaitliğini Belirt
-                    </h2>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-purple-200 mb-2 font-medium">Adın</label>
-                            <input
-                                type="text"
-                                id="nameInput"
-                                class="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-purple-300 border border-purple-300/30 focus:border-purple-400 focus:outline-none"
-                                placeholder="İsmini gir"
-                                onblur="checkExistingUser()"
-                            />
-                            <div id="userStatus" class="mt-2 text-sm"></div>
-                        </div>
-
-                        <div>
-                            <label class="block text-purple-200 mb-3 font-medium">
-                                ⏰ Hangi günler ve saatlerde müsaitsin?
-                            </label>
-                            <div id="availabilityGrid"></div>
-                        </div>
-
-                        <button
-                            onclick="saveResponse()"
-                            class="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 rounded-lg font-bold text-lg hover:from-pink-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
-                        >
-                            Kaydet
-                        </button>
-                    </div>
-                </div>
-
-                <div class="space-y-6">
-                    <div id="bestTime" class="hidden bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 shadow-2xl">
-                        <h2 class="text-2xl font-bold text-white mb-2">
-                            📈 En Uygun Zaman
-                        </h2>
-                        <div id="bestDay" class="text-2xl font-bold text-white"></div>
-                        <div id="bestSlot" class="text-xl font-semibold text-green-100"></div>
-                        <div id="bestInfo" class="text-green-100 mt-2"></div>
-                    </div>
-
-                    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-4 shadow-2xl">
-                        <h3 class="text-white font-bold mb-2">Renkler</h3>
-                        <div class="space-y-1 text-sm">
-                            <div class="flex items-center gap-2">
-                                <div class="w-4 h-4 rounded bg-green-500"></div>
-                                <span class="text-purple-200">Kesinlikle müsaitim (3 puan)</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="w-4 h-4 rounded bg-yellow-500"></div>
-                                <span class="text-purple-200">İdare eder (2 puan)</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="w-4 h-4 rounded bg-orange-500"></div>
-                                <span class="text-purple-200">Zorlanırım (1 puan)</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="w-4 h-4 rounded bg-red-500"></div>
-                                <span class="text-purple-200">Gelemem (0 puan)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl max-h-96 overflow-y-auto">
-                        <h2 class="text-xl font-bold text-white mb-4">Tüm Zamanlar</h2>
-                        <div id="allTimes"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <div class="p-4 md:p-8 max-w-7xl mx-auto">
+    <div class="text-center mb-8">
+      <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">🎭 Tiyatro Prova Planlayıcı</h1>
+      <p id="participantCount" class="text-purple-200 text-lg">0 / 9 kişi yanıt verdi</p>
+      <p class="text-purple-300 text-sm mt-1">✨ Veriler tüm ekiple paylaşılıyor • Gerçek zamanlı güncelleniyor</p>
     </div>
 
-    <script>
-        var DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
-        var TIME_SLOTS = ['09:00-12:00', '12:00-15:00', '15:00-18:00', '18:00-21:00', '21:00-00:00'];
-        var PRIORITY_LEVELS = {
-            high: { label: 'Kesinlikle', value: 3, color: 'bg-green-500' },
-            medium: { label: 'İdare eder', value: 2, color: 'bg-yellow-500' },
-            low: { label: 'Zorlanırım', value: 1, color: 'bg-orange-500' },
-            none: { label: 'Gelemem', value: 0, color: 'bg-red-500' }
-        };
+    <!-- Auth UI will be inserted automatically at top of body via JS -->
+    <div class="grid lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl">
+        <h2 class="text-2xl font-bold text-white mb-4">👥 Müsaitliğini Belirt</h2>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-purple-200 mb-2 font-medium">Adın</label>
+            <input id="nameInput" type="text" placeholder="İsmini gir"
+              class="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-purple-300 border border-purple-300/30 focus:border-purple-400 focus:outline-none" />
+            <div id="userStatus" class="mt-2 text-sm"></div>
+          </div>
 
-        var responses = [];
-        var currentAvailability = {};
-        var firebaseReady = false;
+          <div>
+            <label class="block text-purple-200 mb-3 font-medium">⏰ Hangi günler ve saatlerde müsaitsin?</label>
+            <div id="availabilityGrid"></div>
+          </div>
 
-        window.addEventListener('firebaseReady', function() {
-            firebaseReady = true;
-            init();
-        });
+          <button id="saveBtn" class="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 rounded-lg font-bold text-lg hover:from-pink-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl">
+            Kaydet
+          </button>
+        </div>
+      </div>
 
-        function init() {
-            renderAvailabilityGrid();
-            loadResponses();
+      <div class="space-y-6">
+        <div id="bestTime" class="hidden bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 shadow-2xl">
+          <h2 class="text-2xl font-bold text-white mb-2">📈 En Uygun Zaman</h2>
+          <div id="bestDay" class="text-2xl font-bold text-white"></div>
+          <div id="bestSlot" class="text-xl font-semibold text-green-100"></div>
+          <div id="bestInfo" class="text-green-100 mt-2"></div>
+        </div>
+
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-4 shadow-2xl">
+          <h3 class="text-white font-bold mb-2">Renkler</h3>
+          <div class="space-y-1 text-sm text-purple-200">
+            <div class="flex items-center gap-2"><div class="w-4 h-4 rounded bg-green-500"></div>Kesinlikle müsaitim (3 puan)</div>
+            <div class="flex items-center gap-2"><div class="w-4 h-4 rounded bg-yellow-500"></div>İdare eder (2 puan)</div>
+            <div class="flex items-center gap-2"><div class="w-4 h-4 rounded bg-orange-500"></div>Zorlanırım (1 puan)</div>
+            <div class="flex items-center gap-2"><div class="w-4 h-4 rounded bg-red-500"></div>Gelemem (0 puan)</div>
+          </div>
+        </div>
+
+        <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl max-h-96 overflow-y-auto">
+          <h2 class="text-xl font-bold text-white mb-4">Tüm Zamanlar</h2>
+          <div id="allTimes"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+    // Firebase config (frontend'de görünmesi normal)
+    const firebaseConfig = {
+        apiKey: "AIzaSyBFu7MWsL95tM4Afn81rx-h4hgClYpAi7E",
+        authDomain: "planner-demo-b5604.firebaseapp.com",
+        databaseURL: "https://planner-demo-b5604-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "planner-demo-b5604",
+        storageBucket: "planner-demo-b5604.firebasestorage.app",
+        messagingSenderId: "478193173507",
+        appId: "1:478193173507:web:0935ddfd30a68cb681fa36"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // --- Auth UI (dinamik eklenir) ---
+    function ensureAuthUI() {
+      if (document.getElementById('authArea')) return;
+      const sidebar = document.createElement('div');
+      sidebar.id = 'authArea';
+      sidebar.className = "mb-4 p-4 bg-white/8 rounded-2xl max-w-md mx-auto";
+      sidebar.innerHTML = `
+        <div class="mb-2 text-white font-bold">Giriş / Kayıt</div>
+        <input id="emailInput" type="email" placeholder="email" class="w-full mb-2 px-3 py-2 rounded bg-white/10 text-white" />
+        <input id="passwordInput" type="password" placeholder="şifre" class="w-full mb-2 px-3 py-2 rounded bg-white/10 text-white" />
+        <div class="flex gap-2">
+          <button id="loginBtn" class="px-3 py-2 rounded bg-green-600 text-white">Giriş Yap</button>
+          <button id="registerBtn" class="px-3 py-2 rounded bg-blue-600 text-white">Kayıt Ol</button>
+          <button id="logoutBtn" class="px-3 py-2 rounded bg-red-600 text-white hidden">Çıkış</button>
+        </div>
+        <div id="authStatus" class="mt-2 text-sm text-yellow-200"></div>
+      `;
+      document.body.prepend(sidebar);
+
+      document.getElementById('loginBtn').addEventListener('click', async () => {
+        const email = document.getElementById('emailInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        if (!email || !password) return alert('Email ve şifre girin.');
+        try { await signInWithEmailAndPassword(auth, email, password); }
+        catch (e) { alert('Giriş hatası: ' + e.message); }
+      });
+
+      document.getElementById('registerBtn').addEventListener('click', async () => {
+        const email = document.getElementById('emailInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        if (!email || !password) return alert('Email ve şifre girin.');
+        try { await createUserWithEmailAndPassword(auth, email, password); alert('Kayıt başarılı.'); }
+        catch (e) { alert('Kayıt hatası: ' + e.message); }
+      });
+
+      document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(auth); });
+    }
+
+    // --- uygulama değişkenleri ---
+    const DAYS = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
+    const TIME_SLOTS = ['09:00-12:00','12:00-15:00','15:00-18:00','18:00-21:00','21:00-00:00'];
+    const PRIORITY_LEVELS = {
+      high: { label: 'Kesinlikle', value: 3, color: 'bg-green-500' },
+      medium: { label: 'İdare eder', value: 2, color: 'bg-yellow-500' },
+      low: { label: 'Zorlanırım', value: 1, color: 'bg-orange-500' },
+      none: { label: 'Gelemem', value: 0, color: 'bg-red-500' }
+    };
+
+    let responses = [];
+    let currentAvailability = {};
+    let currentUser = null;
+
+    ensureAuthUI();
+    renderAvailabilityGrid();
+    loadResponses();
+
+    onAuthStateChanged(auth, user => {
+      currentUser = user;
+      updateAuthUI();
+      if (user) loadMyResponse();
+      else { currentAvailability = {}; updateButtons(); }
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', saveResponse);
+
+    function updateAuthUI() {
+      const status = document.getElementById('authStatus');
+      const logout = document.getElementById('logoutBtn');
+      const loginBtn = document.getElementById('loginBtn');
+      const registerBtn = document.getElementById('registerBtn');
+      if (!status) return;
+      if (currentUser) {
+        status.innerHTML = `<span class="text-green-300">Giriş: ${currentUser.email}</span>`;
+        logout.classList.remove('hidden'); loginBtn.classList.add('hidden'); registerBtn.classList.add('hidden');
+      } else {
+        status.innerHTML = `<span class="text-yellow-300">Henüz giriş yapılmadı</span>`;
+        logout.classList.add('hidden'); loginBtn.classList.remove('hidden'); registerBtn.classList.remove('hidden');
+      }
+    }
+
+    function renderAvailabilityGrid() {
+      const grid = document.getElementById('availabilityGrid');
+      let html = '';
+      for (let i=0;i<DAYS.length;i++){
+        const day = DAYS[i];
+        html += `<div class="mb-4 bg-white/5 rounded-lg p-3"><div class="text-white font-bold mb-3">${day}</div>`;
+        for (let j=0;j<TIME_SLOTS.length;j++){
+          const slot = TIME_SLOTS[j];
+          html += `<div class="mb-2"><div class="text-purple-200 text-sm mb-1">${slot}</div><div class="flex gap-1">`;
+          const priorities = ['high','medium','low','none'];
+          for (let k=0;k<priorities.length;k++){
+            const key = priorities[k];
+            const level = PRIORITY_LEVELS[key];
+            html += `<button type="button" onclick="window.toggleAvailability('${day}','${slot}','${key}')" class="priority-btn flex-1 px-2 py-1.5 rounded text-xs font-medium bg-white/10 text-purple-200 hover:bg-white/20" data-key="${day}-${slot}-${key}">${level.label}</button>`;
+          }
+          html += `</div></div>`;
         }
+        html += `</div>`;
+      }
+      grid.innerHTML = html;
+    }
 
-        function renderAvailabilityGrid() {
-            var grid = document.getElementById('availabilityGrid');
-            var html = '';
+    // expose toggleAvailability to global so generated buttons can call it
+    window.toggleAvailability = function(day, slot, priority) {
+      if (!currentUser) { alert('Önce giriş yapmalısın.'); return; }
+      const key = day + '-' + slot;
+      if (currentAvailability[key] === priority) delete currentAvailability[key];
+      else currentAvailability[key] = priority;
+      updateButtons();
+    };
 
-            for (var i = 0; i < DAYS.length; i++) {
-                var day = DAYS[i];
-                html += '<div class="mb-4 bg-white/5 rounded-lg p-3">';
-                html += '<div class="text-white font-bold mb-3">' + day + '</div>';
-                
-                for (var j = 0; j < TIME_SLOTS.length; j++) {
-                    var slot = TIME_SLOTS[j];
-                    html += '<div class="mb-2">';
-                    html += '<div class="text-purple-200 text-sm mb-1">' + slot + '</div>';
-                    html += '<div class="flex gap-1">';
-                    
-                    var priorities = ['high', 'medium', 'low', 'none'];
-                    for (var k = 0; k < priorities.length; k++) {
-                        var key = priorities[k];
-                        var level = PRIORITY_LEVELS[key];
-                        html += '<button type="button" onclick="toggleAvailability(\'' + day + '\', \'' + slot + '\', \'' + key + '\')" ';
-                        html += 'class="priority-btn flex-1 px-2 py-1.5 rounded text-xs font-medium bg-white/10 text-purple-200 hover:bg-white/20" ';
-                        html += 'data-key="' + day + '-' + slot + '-' + key + '">';
-                        html += level.label;
-                        html += '</button>';
-                    }
-                    
-                    html += '</div></div>';
-                }
-                
-                html += '</div>';
-            }
-
-            grid.innerHTML = html;
+    function updateButtons() {
+      const buttons = document.querySelectorAll('.priority-btn');
+      buttons.forEach(btn => {
+        btn.classList.remove('active','bg-green-500','bg-yellow-500','bg-orange-500','bg-red-500','text-white');
+        btn.classList.add('bg-white/10','text-purple-200');
+      });
+      Object.keys(currentAvailability).forEach(k => {
+        const priority = currentAvailability[k];
+        const btn = document.querySelector(`[data-key="${k}-${priority}"]`);
+        if (btn) {
+          btn.classList.add('active');
+          btn.classList.remove('bg-white/10','text-purple-200');
+          btn.classList.add(PRIORITY_LEVELS[priority].color,'text-white');
         }
+      });
+    }
 
-        function toggleAvailability(day, slot, priority) {
-            var key = day + '-' + slot;
-            
-            if (currentAvailability[key] === priority) {
-                delete currentAvailability[key];
-            } else {
-                currentAvailability[key] = priority;
-            }
-
-            updateButtons();
+    async function loadMyResponse() {
+      if (!currentUser) return;
+      try {
+        const myKey = currentUser.uid;
+        const snap = await get(ref(db, 'responses/' + myKey));
+        if (snap.exists()) {
+          const val = snap.val();
+          currentAvailability = val.availability || {};
+          document.getElementById('nameInput').value = val.name || '';
+          updateButtons();
+          document.getElementById('userStatus').innerHTML = '<span class="text-yellow-300">✏️ Mevcut yanıtın yüklendi.</span>';
+        } else {
+          currentAvailability = {};
+          updateButtons();
+          document.getElementById('userStatus').innerHTML = '<span class="text-green-300">✨ Yeni kullanıcı - Müsaitliğini seç ve kaydet!</span>';
         }
+      } catch(e) { console.error(e); }
+    }
 
-        function updateButtons() {
-            var buttons = document.querySelectorAll('.priority-btn');
-            for (var i = 0; i < buttons.length; i++) {
-                var btn = buttons[i];
-                btn.classList.remove('active');
-                btn.classList.remove('bg-green-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'text-white');
-                btn.classList.add('bg-white/10', 'text-purple-200');
-            }
+    async function saveResponse() {
+      if (!currentUser) { alert('Kayıt için giriş yapmalısın.'); return; }
+      const name = document.getElementById('nameInput').value.trim();
+      if (!name) { alert('Lütfen adını gir!'); return; }
+      if (Object.keys(currentAvailability).length === 0) { alert('En az bir gün/saat seç!'); return; }
+      const payload = { name, availability: currentAvailability, timestamp: new Date().toISOString(), email: currentUser.email };
+      try {
+        await set(ref(db, 'responses/' + currentUser.uid), payload);
+        document.getElementById('userStatus').innerHTML = '<span class="text-green-300">✅ Yanıtın kaydedildi!</span>';
+      } catch (e) { console.error(e); alert('Kayıt hatası: ' + e.message); }
+    }
 
-            var keys = Object.keys(currentAvailability);
-            for (var i = 0; i < keys.length; i++) {
-                var key = keys[i];
-                var priority = currentAvailability[key];
-                var btn = document.querySelector('[data-key="' + key + '-' + priority + '"]');
-                if (btn) {
-                    btn.classList.add('active');
-                    btn.classList.remove('bg-white/10', 'text-purple-200');
-                    btn.classList.add(PRIORITY_LEVELS[priority].color, 'text-white');
-                }
-            }
+    function loadResponses() {
+      onValue(ref(db,'responses'), snap => {
+        responses = [];
+        if (snap.exists()) {
+          const data = snap.val();
+          for (const k in data) responses.push(data[k]);
         }
+        updateUI();
+      });
+    }
 
-        async function checkExistingUser() {
-            if (!firebaseReady) return;
-            
-            var name = document.getElementById('nameInput').value.trim();
-            if (!name) {
-                document.getElementById('userStatus').innerHTML = '';
-                currentAvailability = {};
-                updateButtons();
-                return;
-            }
-
-            try {
-                var key = name.toLowerCase().replace(/\s+/g, '-');
-                var dbRef = window.firebaseRef(window.firebaseDB, 'responses/' + key);
-                var snapshot = await window.firebaseGet(dbRef);
-                
-                if (snapshot.exists()) {
-                    var existingResponse = snapshot.val();
-                    currentAvailability = existingResponse.availability;
-                    updateButtons();
-                    document.getElementById('userStatus').innerHTML = 
-                        '<span class="text-yellow-300">✏️ Mevcut yanıtın yüklendi. Değişiklik yapıp tekrar kaydedebilirsin!</span>';
-                } else {
-                    currentAvailability = {};
-                    updateButtons();
-                    document.getElementById('userStatus').innerHTML = 
-                        '<span class="text-green-300">✨ Yeni kullanıcı - Müsaitliğini seç ve kaydet!</span>';
-                }
-            } catch (error) {
-                console.error('Error checking user:', error);
-            }
+    function calculateScores() {
+      const scores = {};
+      for (let d of DAYS) for (let s of TIME_SLOTS) {
+        const k = d + '-' + s; scores[k] = 0;
+        for (let r of responses) {
+          const priority = r.availability ? r.availability[k] : undefined;
+          if (priority && priority !== 'none') scores[k] += PRIORITY_LEVELS[priority].value;
         }
+      }
+      return scores;
+    }
 
-        async function saveResponse() {
-            if (!firebaseReady) {
-                alert('Firebase yükleniyor, lütfen bekleyin...');
-                return;
-            }
+    function getParticipants(day, slot) {
+      const key = day + '-' + slot; const out = [];
+      for (let r of responses) if (r.availability && r.availability[key] && r.availability[key] !== 'none') out.push({name:r.name, priority:r.availability[key]});
+      return out;
+    }
 
-            var name = document.getElementById('nameInput').value.trim();
-            
-            if (!name) {
-                alert('Lütfen adını gir!');
-                return;
-            }
+    function getUnavailable(day, slot) {
+      const key = day + '-' + slot; const out = [];
+      for (let r of responses) if (r.availability && r.availability[key] === 'none') out.push(r.name);
+      return out;
+    }
 
-            if (Object.keys(currentAvailability).length === 0) {
-                alert('En az bir gün ve saat seç!');
-                return;
-            }
-
-            var response = {
-                name: name,
-                availability: currentAvailability,
-                timestamp: new Date().toISOString()
-            };
-
-            try {
-                var key = name.toLowerCase().replace(/\s+/g, '-');
-                var dbRef = window.firebaseRef(window.firebaseDB, 'responses/' + key);
-                await window.firebaseSet(dbRef, response);
-                
-                document.getElementById('nameInput').value = '';
-                currentAvailability = {};
-                updateButtons();
-                document.getElementById('userStatus').innerHTML = '';
-                
-                alert('Yanıtın kaydedildi! 🎭');
-            } catch (error) {
-                console.error('Save error:', error);
-                alert('Kayıt hatası: ' + error.message);
-            }
+    function updateUI() {
+      document.getElementById('participantCount').textContent = responses.length + ' / 9 kişi yanıt verdi';
+      const scores = calculateScores();
+      let maxScore = 0; for (const k in scores) if (scores[k] > maxScore) maxScore = scores[k];
+      if (maxScore > 0) {
+        for (const k in scores) if (scores[k] === maxScore) {
+          const parts = k.split('-'); const day = parts[0]; const slot = parts.slice(1).join('-');
+          const participants = getParticipants(day, slot);
+          document.getElementById('bestTime').classList.remove('hidden');
+          document.getElementById('bestDay').textContent = day;
+          document.getElementById('bestSlot').textContent = slot;
+          document.getElementById('bestInfo').textContent = participants.length + ' kişi müsait • Skor: ' + maxScore;
+          break;
         }
+      }
+      renderAllTimes(scores, maxScore);
+    }
 
-        function loadResponses() {
-            if (!firebaseReady) return;
-
-            var dbRef = window.firebaseRef(window.firebaseDB, 'responses');
-            window.firebaseOnValue(dbRef, function(snapshot) {
-                responses = [];
-                if (snapshot.exists()) {
-                    var data = snapshot.val();
-                    for (var key in data) {
-                        responses.push(data[key]);
-                    }
-                }
-                updateUI();
-            });
+    function renderAllTimes(scores, maxScore) {
+      const container = document.getElementById('allTimes'); let html = '';
+      for (let day of DAYS) {
+        let dayHtml = '<h3 class="text-white font-bold mt-3 mb-2">' + day + '</h3>'; let has = false;
+        for (let slot of TIME_SLOTS) {
+          const parts = getParticipants(day, slot); const un = getUnavailable(day, slot); const key = day + '-' + slot; const score = scores[key]; const perc = maxScore>0 ? (score/maxScore)*100 : 0;
+          if (parts.length === 0 && un.length === 0) continue;
+          has = true;
+          dayHtml += `<div class="bg-white/5 rounded-lg p-3 mb-2"><div class="flex justify-between items-center mb-1"><span class="text-purple-200 text-sm">${slot}</span><span class="text-purple-200 text-xs">${parts.length} kişi • ${score} puan</span></div>`;
+          dayHtml += `<div class="w-full bg-white/10 rounded-full h-2 mb-2"><div class="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500" style="width:${perc}%"></div></div>`;
+          if (parts.length>0) { dayHtml += '<div class="flex flex-wrap gap-1 mb-1">'; for (let p of parts) dayHtml += `<span class="px-2 py-0.5 rounded text-xs font-medium text-white ${PRIORITY_LEVELS[p.priority].color}">${p.name}</span>`; dayHtml += '</div>'; }
+          if (un.length>0) { dayHtml += '<div class="flex flex-wrap gap-1">'; for (let u of un) dayHtml += `<span class="px-2 py-0.5 rounded text-xs font-medium text-white bg-red-500 opacity-60">${u} ✕</span>`; dayHtml += '</div>'; }
+          dayHtml += '</div>';
         }
-
-        function calculateScores() {
-            var scores = {};
-            for (var i = 0; i < DAYS.length; i++) {
-                var day = DAYS[i];
-                for (var j = 0; j < TIME_SLOTS.length; j++) {
-                    var slot = TIME_SLOTS[j];
-                    var key = day + '-' + slot;
-                    scores[key] = 0;
-                    
-                    for (var k = 0; k < responses.length; k++) {
-                        var response = responses[k];
-                        var priority = response.availability[key];
-                        if (priority && priority !== 'none') {
-                            scores[key] += PRIORITY_LEVELS[priority].value;
-                        }
-                    }
-                }
-            }
-            return scores;
-        }
-
-        function getParticipants(day, slot) {
-            var key = day + '-' + slot;
-            var participants = [];
-            for (var i = 0; i < responses.length; i++) {
-                var r = responses[i];
-                if (r.availability[key] && r.availability[key] !== 'none') {
-                    participants.push({ name: r.name, priority: r.availability[key] });
-                }
-            }
-            return participants;
-        }
-
-        function getUnavailable(day, slot) {
-            var key = day + '-' + slot;
-            var unavailable = [];
-            for (var i = 0; i < responses.length; i++) {
-                var r = responses[i];
-                if (r.availability[key] === 'none') {
-                    unavailable.push(r.name);
-                }
-            }
-            return unavailable;
-        }
-
-        function updateUI() {
-            document.getElementById('participantCount').textContent = responses.length + ' / 9 kişi yanıt verdi';
-
-            var scores = calculateScores();
-            var maxScore = 0;
-            var scoreKeys = Object.keys(scores);
-            for (var i = 0; i < scoreKeys.length; i++) {
-                if (scores[scoreKeys[i]] > maxScore) {
-                    maxScore = scores[scoreKeys[i]];
-                }
-            }
-
-            if (maxScore > 0) {
-                for (var i = 0; i < scoreKeys.length; i++) {
-                    var key = scoreKeys[i];
-                    if (scores[key] === maxScore) {
-                        var parts = key.split('-');
-                        var day = parts[0];
-                        var slot = parts.slice(1).join('-');
-                        
-                        var participants = getParticipants(day, slot);
-                        
-                        document.getElementById('bestTime').classList.remove('hidden');
-                        document.getElementById('bestDay').textContent = day;
-                        document.getElementById('bestSlot').textContent = slot;
-                        document.getElementById('bestInfo').textContent = participants.length + ' kişi müsait • Skor: ' + maxScore;
-                        break;
-                    }
-                }
-            }
-
-            renderAllTimes(scores, maxScore);
-        }
-
-        function renderAllTimes(scores, maxScore) {
-            var container = document.getElementById('allTimes');
-            var html = '';
-
-            for (var i = 0; i < DAYS.length; i++) {
-                var day = DAYS[i];
-                var dayHtml = '<h3 class="text-white font-bold mt-3 mb-2">' + day + '</h3>';
-                var hasContent = false;
-
-                for (var j = 0; j < TIME_SLOTS.length; j++) {
-                    var slot = TIME_SLOTS[j];
-                    var participants = getParticipants(day, slot);
-                    var unavailable = getUnavailable(day, slot);
-                    var key = day + '-' + slot;
-                    var score = scores[key];
-                    var percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-
-                    if (participants.length === 0 && unavailable.length === 0) continue;
-
-                    hasContent = true;
-                    dayHtml += '<div class="bg-white/5 rounded-lg p-3 mb-2">';
-                    dayHtml += '<div class="flex justify-between items-center mb-1">';
-                    dayHtml += '<span class="text-purple-200 text-sm">' + slot + '</span>';
-                    dayHtml += '<span class="text-purple-200 text-xs">' + participants.length + ' kişi • ' + score + ' puan</span>';
-                    dayHtml += '</div>';
-                    
-                    dayHtml += '<div class="w-full bg-white/10 rounded-full h-2 mb-2">';
-                    dayHtml += '<div class="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500" style="width: ' + percentage + '%"></div>';
-                    dayHtml += '</div>';
-                    
-                    if (participants.length > 0) {
-                        dayHtml += '<div class="flex flex-wrap gap-1 mb-1">';
-                        for (var k = 0; k < participants.length; k++) {
-                            var p = participants[k];
-                            dayHtml += '<span class="px-2 py-0.5 rounded text-xs font-medium text-white ' + PRIORITY_LEVELS[p.priority].color + '">';
-                            dayHtml += p.name;
-                            dayHtml += '</span>';
-                        }
-                        dayHtml += '</div>';
-                    }
-                    
-                    if (unavailable.length > 0) {
-                        dayHtml += '<div class="flex flex-wrap gap-1">';
-                        for (var k = 0; k < unavailable.length; k++) {
-                            dayHtml += '<span class="px-2 py-0.5 rounded text-xs font-medium text-white bg-red-500 opacity-60">';
-                            dayHtml += unavailable[k] + ' ✕';
-                            dayHtml += '</span>';
-                        }
-                        dayHtml += '</div>';
-                    }
-                    
-                    dayHtml += '</div>';
-                }
-
-                if (hasContent) {
-                    html += dayHtml;
-                }
-            }
-
-            container.innerHTML = html || '<p class="text-purple-200 text-sm">Henüz yanıt yok</p>';
-        }
-    </script>
+        if (has) html += dayHtml;
+      }
+      container.innerHTML = html || '<p class="text-purple-200 text-sm">Henüz yanıt yok</p>';
+    }
+  </script>
 </body>
 </html>
