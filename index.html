@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tiyatro Prova Planlayıcı</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // Firebase yapılandırması
+        const firebaseConfig = {
+            apiKey: "AIzaSyBFu7MWsL95tM4Afn81rx-h4hgClYpAi7E",
+            authDomain: "planner-demo-b5604.firebaseapp.com",
+            databaseURL: "https://planner-demo-b5604-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "planner-demo-b5604",
+            storageBucket: "planner-demo-b5604.firebasestorage.app",
+            messagingSenderId: "478193173507",
+            appId: "1:478193173507:web:0935ddfd30a68cb681fa36"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        window.firebaseDB = database;
+        window.firebaseRef = ref;
+        window.firebaseSet = set;
+        window.firebaseGet = get;
+        window.firebaseOnValue = onValue;
+        
+        window.dispatchEvent(new Event('firebaseReady'));
+    </script>
     <style>
         .priority-btn {
             transition: all 0.3s ease;
@@ -26,7 +52,7 @@
                     0 / 9 kişi yanıt verdi
                 </p>
                 <p class="text-purple-300 text-sm mt-1">
-                    ✨ Veriler tüm ekiple paylaşılıyor • Otomatik güncelleniyor
+                    ✨ Veriler tüm ekiple paylaşılıyor • Gerçek zamanlı güncelleniyor
                 </p>
             </div>
 
@@ -118,11 +144,16 @@
 
         var responses = [];
         var currentAvailability = {};
+        var firebaseReady = false;
+
+        window.addEventListener('firebaseReady', function() {
+            firebaseReady = true;
+            init();
+        });
 
         function init() {
             renderAvailabilityGrid();
             loadResponses();
-            setInterval(loadResponses, 10000);
         }
 
         function renderAvailabilityGrid() {
@@ -195,6 +226,8 @@
         }
 
         async function checkExistingUser() {
+            if (!firebaseReady) return;
+            
             var name = document.getElementById('nameInput').value.trim();
             if (!name) {
                 document.getElementById('userStatus').innerHTML = '';
@@ -204,11 +237,12 @@
             }
 
             try {
-                var key = 'theater:' + name.toLowerCase().replace(/\s+/g, '-');
-                var result = await window.storage.get(key, true);
+                var key = name.toLowerCase().replace(/\s+/g, '-');
+                var dbRef = window.firebaseRef(window.firebaseDB, 'responses/' + key);
+                var snapshot = await window.firebaseGet(dbRef);
                 
-                if (result && result.value) {
-                    var existingResponse = JSON.parse(result.value);
+                if (snapshot.exists()) {
+                    var existingResponse = snapshot.val();
                     currentAvailability = existingResponse.availability;
                     updateButtons();
                     document.getElementById('userStatus').innerHTML = 
@@ -220,14 +254,16 @@
                         '<span class="text-green-300">✨ Yeni kullanıcı - Müsaitliğini seç ve kaydet!</span>';
                 }
             } catch (error) {
-                currentAvailability = {};
-                updateButtons();
-                document.getElementById('userStatus').innerHTML = 
-                    '<span class="text-green-300">✨ Yeni kullanıcı - Müsaitliğini seç ve kaydet!</span>';
+                console.error('Error checking user:', error);
             }
         }
 
         async function saveResponse() {
+            if (!firebaseReady) {
+                alert('Firebase yükleniyor, lütfen bekleyin...');
+                return;
+            }
+
             var name = document.getElementById('nameInput').value.trim();
             
             if (!name) {
@@ -247,15 +283,15 @@
             };
 
             try {
-                var key = 'theater:' + name.toLowerCase().replace(/\s+/g, '-');
-                await window.storage.set(key, JSON.stringify(response), true);
+                var key = name.toLowerCase().replace(/\s+/g, '-');
+                var dbRef = window.firebaseRef(window.firebaseDB, 'responses/' + key);
+                await window.firebaseSet(dbRef, response);
                 
                 document.getElementById('nameInput').value = '';
                 currentAvailability = {};
                 updateButtons();
                 document.getElementById('userStatus').innerHTML = '';
                 
-                await loadResponses();
                 alert('Yanıtın kaydedildi! 🎭');
             } catch (error) {
                 console.error('Save error:', error);
@@ -263,28 +299,20 @@
             }
         }
 
-        async function loadResponses() {
-            try {
-                var keys = await window.storage.list('theater:');
+        function loadResponses() {
+            if (!firebaseReady) return;
+
+            var dbRef = window.firebaseRef(window.firebaseDB, 'responses');
+            window.firebaseOnValue(dbRef, function(snapshot) {
                 responses = [];
-                
-                if (keys && keys.keys) {
-                    for (var i = 0; i < keys.keys.length; i++) {
-                        try {
-                            var result = await window.storage.get(keys.keys[i], true);
-                            if (result && result.value) {
-                                responses.push(JSON.parse(result.value));
-                            }
-                        } catch (err) {
-                            console.log('Key not found:', keys.keys[i]);
-                        }
+                if (snapshot.exists()) {
+                    var data = snapshot.val();
+                    for (var key in data) {
+                        responses.push(data[key]);
                     }
                 }
-                
                 updateUI();
-            } catch (error) {
-                console.error('Load error:', error);
-            }
+            });
         }
 
         function calculateScores() {
@@ -427,8 +455,6 @@
 
             container.innerHTML = html || '<p class="text-purple-200 text-sm">Henüz yanıt yok</p>';
         }
-
-        init();
     </script>
 </body>
 </html>
