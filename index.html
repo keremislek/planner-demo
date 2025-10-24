@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiyatro Prova Planlayıcı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .priority-btn {
+            transition: all 0.3s ease;
+        }
+        .priority-btn.active {
+            transform: scale(1.05);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900">
+    <div class="p-4 md:p-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">
+                    🎭 Tiyatro Prova Planlayıcı
+                </h1>
+                <p class="text-purple-200 text-lg" id="participantCount">
+                    0 / 9 kişi yanıt verdi
+                </p>
+                <p class="text-purple-300 text-sm mt-1">
+                    ✨ Veriler tüm ekiple paylaşılıyor • Otomatik güncelleniyor
+                </p>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl">
+                    <h2 class="text-2xl font-bold text-white mb-4">
+                        👥 Müsaitliğini Belirt
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-purple-200 mb-2 font-medium">Adın</label>
+                            <input
+                                type="text"
+                                id="nameInput"
+                                class="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-purple-300 border border-purple-300/30 focus:border-purple-400 focus:outline-none"
+                                placeholder="İsmini gir"
+                                onblur="checkExistingUser()"
+                            />
+                            <div id="userStatus" class="mt-2 text-sm"></div>
+                        </div>
+
+                        <div>
+                            <label class="block text-purple-200 mb-3 font-medium">
+                                ⏰ Hangi günler ve saatlerde müsaitsin?
+                            </label>
+                            <div id="availabilityGrid"></div>
+                        </div>
+
+                        <button
+                            onclick="saveResponse()"
+                            class="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 rounded-lg font-bold text-lg hover:from-pink-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+                        >
+                            Kaydet
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div id="bestTime" class="hidden bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 shadow-2xl">
+                        <h2 class="text-2xl font-bold text-white mb-2">
+                            📈 En Uygun Zaman
+                        </h2>
+                        <div id="bestDay" class="text-2xl font-bold text-white"></div>
+                        <div id="bestSlot" class="text-xl font-semibold text-green-100"></div>
+                        <div id="bestInfo" class="text-green-100 mt-2"></div>
+                    </div>
+
+                    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-4 shadow-2xl">
+                        <h3 class="text-white font-bold mb-2">Renkler</h3>
+                        <div class="space-y-1 text-sm">
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 rounded bg-green-500"></div>
+                                <span class="text-purple-200">Kesinlikle müsaitim (3 puan)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 rounded bg-yellow-500"></div>
+                                <span class="text-purple-200">İdare eder (2 puan)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 rounded bg-orange-500"></div>
+                                <span class="text-purple-200">Zorlanırım (1 puan)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-4 h-4 rounded bg-red-500"></div>
+                                <span class="text-purple-200">Gelemem (0 puan)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl max-h-96 overflow-y-auto">
+                        <h2 class="text-xl font-bold text-white mb-4">Tüm Zamanlar</h2>
+                        <div id="allTimes"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+        var TIME_SLOTS = ['09:00-12:00', '12:00-15:00', '15:00-18:00', '18:00-21:00', '21:00-00:00'];
+        var PRIORITY_LEVELS = {
+            high: { label: 'Kesinlikle', value: 3, color: 'bg-green-500' },
+            medium: { label: 'İdare eder', value: 2, color: 'bg-yellow-500' },
+            low: { label: 'Zorlanırım', value: 1, color: 'bg-orange-500' },
+            none: { label: 'Gelemem', value: 0, color: 'bg-red-500' }
+        };
+
+        var responses = [];
+        var currentAvailability = {};
+
+        function init() {
+            renderAvailabilityGrid();
+            loadResponses();
+            setInterval(loadResponses, 10000);
+        }
+
+        function renderAvailabilityGrid() {
+            var grid = document.getElementById('availabilityGrid');
+            var html = '';
+
+            for (var i = 0; i < DAYS.length; i++) {
+                var day = DAYS[i];
+                html += '<div class="mb-4 bg-white/5 rounded-lg p-3">';
+                html += '<div class="text-white font-bold mb-3">' + day + '</div>';
+                
+                for (var j = 0; j < TIME_SLOTS.length; j++) {
+                    var slot = TIME_SLOTS[j];
+                    html += '<div class="mb-2">';
+                    html += '<div class="text-purple-200 text-sm mb-1">' + slot + '</div>';
+                    html += '<div class="flex gap-1">';
+                    
+                    var priorities = ['high', 'medium', 'low', 'none'];
+                    for (var k = 0; k < priorities.length; k++) {
+                        var key = priorities[k];
+                        var level = PRIORITY_LEVELS[key];
+                        html += '<button type="button" onclick="toggleAvailability(\'' + day + '\', \'' + slot + '\', \'' + key + '\')" ';
+                        html += 'class="priority-btn flex-1 px-2 py-1.5 rounded text-xs font-medium bg-white/10 text-purple-200 hover:bg-white/20" ';
+                        html += 'data-key="' + day + '-' + slot + '-' + key + '">';
+                        html += level.label;
+                        html += '</button>';
+                    }
+                    
+                    html += '</div></div>';
+                }
+                
+                html += '</div>';
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function toggleAvailability(day, slot, priority) {
+            var key = day + '-' + slot;
+            
+            if (currentAvailability[key] === priority) {
+                delete currentAvailability[key];
+            } else {
+                currentAvailability[key] = priority;
+            }
+
+            updateButtons();
+        }
+
+        function updateButtons() {
+            var buttons = document.querySelectorAll('.priority-btn');
+            for (var i = 0; i < buttons.length; i++) {
+                var btn = buttons[i];
+                btn.classList.remove('active');
+                btn.classList.remove('bg-green-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'text-white');
+                btn.classList.add('bg-white/10', 'text-purple-200');
+            }
+
+            var keys = Object.keys(currentAvailability);
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i];
+                var priority = currentAvailability[key];
+                var btn = document.querySelector('[data-key="' + key + '-' + priority + '"]');
+                if (btn) {
+                    btn.classList.add('active');
+                    btn.classList.remove('bg-white/10', 'text-purple-200');
+                    btn.classList.add(PRIORITY_LEVELS[priority].color, 'text-white');
+                }
+            }
+        }
+
+        async function checkExistingUser() {
+            var name = document.getElementById('nameInput').value.trim();
+            if (!name) {
+                document.getElementById('userStatus').innerHTML = '';
+                currentAvailability = {};
+                updateButtons();
+                return;
+            }
+
+            try {
+                var key = 'theater:' + name.toLowerCase().replace(/\s+/g, '-');
+                var result = await window.storage.get(key, true);
+                
+                if (result && result.value) {
+                    var existingResponse = JSON.parse(result.value);
+                    currentAvailability = existingResponse.availability;
+                    updateButtons();
+                    document.getElementById('userStatus').innerHTML = 
+                        '<span class="text-yellow-300">✏️ Mevcut yanıtın yüklendi. Değişiklik yapıp tekrar kaydedebilirsin!</span>';
+                } else {
+                    currentAvailability = {};
+                    updateButtons();
+                    document.getElementById('userStatus').innerHTML = 
+                        '<span class="text-green-300">✨ Yeni kullanıcı - Müsaitliğini seç ve kaydet!</span>';
+                }
+            } catch (error) {
+                currentAvailability = {};
+                updateButtons();
+                document.getElementById('userStatus').innerHTML = 
+                    '<span class="text-green-300">✨ Yeni kullanıcı - Müsaitliğini seç ve kaydet!</span>';
+            }
+        }
+
+        async function saveResponse() {
+            var name = document.getElementById('nameInput').value.trim();
+            
+            if (!name) {
+                alert('Lütfen adını gir!');
+                return;
+            }
+
+            if (Object.keys(currentAvailability).length === 0) {
+                alert('En az bir gün ve saat seç!');
+                return;
+            }
+
+            var response = {
+                name: name,
+                availability: currentAvailability,
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                var key = 'theater:' + name.toLowerCase().replace(/\s+/g, '-');
+                await window.storage.set(key, JSON.stringify(response), true);
+                
+                document.getElementById('nameInput').value = '';
+                currentAvailability = {};
+                updateButtons();
+                document.getElementById('userStatus').innerHTML = '';
+                
+                await loadResponses();
+                alert('Yanıtın kaydedildi! 🎭');
+            } catch (error) {
+                console.error('Save error:', error);
+                alert('Kayıt hatası: ' + error.message);
+            }
+        }
+
+        async function loadResponses() {
+            try {
+                var keys = await window.storage.list('theater:');
+                responses = [];
+                
+                if (keys && keys.keys) {
+                    for (var i = 0; i < keys.keys.length; i++) {
+                        try {
+                            var result = await window.storage.get(keys.keys[i], true);
+                            if (result && result.value) {
+                                responses.push(JSON.parse(result.value));
+                            }
+                        } catch (err) {
+                            console.log('Key not found:', keys.keys[i]);
+                        }
+                    }
+                }
+                
+                updateUI();
+            } catch (error) {
+                console.error('Load error:', error);
+            }
+        }
+
+        function calculateScores() {
+            var scores = {};
+            for (var i = 0; i < DAYS.length; i++) {
+                var day = DAYS[i];
+                for (var j = 0; j < TIME_SLOTS.length; j++) {
+                    var slot = TIME_SLOTS[j];
+                    var key = day + '-' + slot;
+                    scores[key] = 0;
+                    
+                    for (var k = 0; k < responses.length; k++) {
+                        var response = responses[k];
+                        var priority = response.availability[key];
+                        if (priority && priority !== 'none') {
+                            scores[key] += PRIORITY_LEVELS[priority].value;
+                        }
+                    }
+                }
+            }
+            return scores;
+        }
+
+        function getParticipants(day, slot) {
+            var key = day + '-' + slot;
+            var participants = [];
+            for (var i = 0; i < responses.length; i++) {
+                var r = responses[i];
+                if (r.availability[key] && r.availability[key] !== 'none') {
+                    participants.push({ name: r.name, priority: r.availability[key] });
+                }
+            }
+            return participants;
+        }
+
+        function getUnavailable(day, slot) {
+            var key = day + '-' + slot;
+            var unavailable = [];
+            for (var i = 0; i < responses.length; i++) {
+                var r = responses[i];
+                if (r.availability[key] === 'none') {
+                    unavailable.push(r.name);
+                }
+            }
+            return unavailable;
+        }
+
+        function updateUI() {
+            document.getElementById('participantCount').textContent = responses.length + ' / 9 kişi yanıt verdi';
+
+            var scores = calculateScores();
+            var maxScore = 0;
+            var scoreKeys = Object.keys(scores);
+            for (var i = 0; i < scoreKeys.length; i++) {
+                if (scores[scoreKeys[i]] > maxScore) {
+                    maxScore = scores[scoreKeys[i]];
+                }
+            }
+
+            if (maxScore > 0) {
+                for (var i = 0; i < scoreKeys.length; i++) {
+                    var key = scoreKeys[i];
+                    if (scores[key] === maxScore) {
+                        var parts = key.split('-');
+                        var day = parts[0];
+                        var slot = parts.slice(1).join('-');
+                        
+                        var participants = getParticipants(day, slot);
+                        
+                        document.getElementById('bestTime').classList.remove('hidden');
+                        document.getElementById('bestDay').textContent = day;
+                        document.getElementById('bestSlot').textContent = slot;
+                        document.getElementById('bestInfo').textContent = participants.length + ' kişi müsait • Skor: ' + maxScore;
+                        break;
+                    }
+                }
+            }
+
+            renderAllTimes(scores, maxScore);
+        }
+
+        function renderAllTimes(scores, maxScore) {
+            var container = document.getElementById('allTimes');
+            var html = '';
+
+            for (var i = 0; i < DAYS.length; i++) {
+                var day = DAYS[i];
+                var dayHtml = '<h3 class="text-white font-bold mt-3 mb-2">' + day + '</h3>';
+                var hasContent = false;
+
+                for (var j = 0; j < TIME_SLOTS.length; j++) {
+                    var slot = TIME_SLOTS[j];
+                    var participants = getParticipants(day, slot);
+                    var unavailable = getUnavailable(day, slot);
+                    var key = day + '-' + slot;
+                    var score = scores[key];
+                    var percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+
+                    if (participants.length === 0 && unavailable.length === 0) continue;
+
+                    hasContent = true;
+                    dayHtml += '<div class="bg-white/5 rounded-lg p-3 mb-2">';
+                    dayHtml += '<div class="flex justify-between items-center mb-1">';
+                    dayHtml += '<span class="text-purple-200 text-sm">' + slot + '</span>';
+                    dayHtml += '<span class="text-purple-200 text-xs">' + participants.length + ' kişi • ' + score + ' puan</span>';
+                    dayHtml += '</div>';
+                    
+                    dayHtml += '<div class="w-full bg-white/10 rounded-full h-2 mb-2">';
+                    dayHtml += '<div class="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500" style="width: ' + percentage + '%"></div>';
+                    dayHtml += '</div>';
+                    
+                    if (participants.length > 0) {
+                        dayHtml += '<div class="flex flex-wrap gap-1 mb-1">';
+                        for (var k = 0; k < participants.length; k++) {
+                            var p = participants[k];
+                            dayHtml += '<span class="px-2 py-0.5 rounded text-xs font-medium text-white ' + PRIORITY_LEVELS[p.priority].color + '">';
+                            dayHtml += p.name;
+                            dayHtml += '</span>';
+                        }
+                        dayHtml += '</div>';
+                    }
+                    
+                    if (unavailable.length > 0) {
+                        dayHtml += '<div class="flex flex-wrap gap-1">';
+                        for (var k = 0; k < unavailable.length; k++) {
+                            dayHtml += '<span class="px-2 py-0.5 rounded text-xs font-medium text-white bg-red-500 opacity-60">';
+                            dayHtml += unavailable[k] + ' ✕';
+                            dayHtml += '</span>';
+                        }
+                        dayHtml += '</div>';
+                    }
+                    
+                    dayHtml += '</div>';
+                }
+
+                if (hasContent) {
+                    html += dayHtml;
+                }
+            }
+
+            container.innerHTML = html || '<p class="text-purple-200 text-sm">Henüz yanıt yok</p>';
+        }
+
+        init();
+    </script>
+</body>
+</html>
